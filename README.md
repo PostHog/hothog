@@ -6,9 +6,13 @@
 
 **Built for coding agents.** Cleaning up imports is mechanical, high-volume work — a perfect job for an agent — but only if something else makes the hard calls first: what's worth deferring, what *can* be deferred, and the single place to cut. hothog is that something. It emits a ranked, verdict-annotated backlog (and a structured `Report` API) an agent can execute row by row — see [For coding agents](#for-coding-agents). It was itself built with agentic coding, and generalized from a real `django.setup()` optimization effort; the entry point is configurable, so you can point it at any `"module:callable"`.
 
-```
+```bash
+uv add --dev hothog     # then run it with: uv run hothog ...
+# or
 pip install hothog
 ```
+
+Install it into the **same environment as the code you're analyzing** — hothog imports your project (and grimp) at runtime to trace the graph. For that reason, don't run it as an isolated tool (`uvx hothog`): the ephemeral environment wouldn't have your project to import.
 
 ## Why this exists (the "import tax")
 
