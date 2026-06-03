@@ -1,0 +1,13 @@
+/dist
+/build
+/.venv
+/.pytest_cache
+/.mypy_cache
+/.ruff_cache
+*.egg-info
+__pycache__
+*.pyc
+*.pyo
+.DS_Store
+/.claude
+uv.lock
