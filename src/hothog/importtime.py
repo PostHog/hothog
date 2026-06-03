@@ -14,6 +14,8 @@ from collections import defaultdict
 from collections.abc import Callable
 from pathlib import Path
 
+from ._util import top_level
+
 
 def parse_self_ms(path: str | Path) -> dict[str, float]:
     """Map module name -> self-time in milliseconds. Missing/unreadable log -> empty."""
@@ -37,7 +39,7 @@ def aggregate_self_ms(path: str | Path, is_first_party: Callable[[str], bool]) -
     """Self-time aggregated by full module (first-party) or top-level package (external)."""
     agg: dict[str, float] = defaultdict(float)
     for mod, ms in parse_self_ms(path).items():
-        key = mod if is_first_party(mod) else mod.split(".")[0]
+        key = mod if is_first_party(mod) else top_level(mod)
         agg[key] += ms
     return agg
 

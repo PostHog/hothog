@@ -11,7 +11,10 @@ answer directly; ``ast`` answers it in one pass over the one file.
 from __future__ import annotations
 
 import ast
+import contextlib
 from collections.abc import Iterable
+
+from ._util import top_level
 
 
 def bound_names(tree: ast.AST, lib: str) -> set[str]:
@@ -20,11 +23,11 @@ def bound_names(tree: ast.AST, lib: str) -> set[str]:
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for a in node.names:
-                if a.name == lib or a.name.split(".")[0] == lib:
-                    names.add(a.asname or a.name.split(".")[0])
+                if a.name == lib or top_level(a.name) == lib:
+                    names.add(a.asname or top_level(a.name))
         elif isinstance(node, ast.ImportFrom):
             mod = node.module or ""
-            if mod == lib or mod.split(".")[0] == lib:
+            if mod == lib or top_level(mod) == lib:
                 for a in node.names:
                     names.add(a.asname or a.name)
     return names
@@ -87,8 +90,10 @@ def _has_future_annotations(tree: ast.Module) -> bool:
     )
 
 
-def deferability(lib: str, sources: Iterable[str], *, test_only: frozenset[str] = frozenset()) -> tuple[str, int]:
-    """Worst-case deferability verdict for `lib` across the given importer source strings.
+def deferability_for_trees(
+    lib: str, trees: Iterable[ast.Module], *, test_only: frozenset[str] = frozenset()
+) -> tuple[str, int]:
+    """Worst-case deferability verdict for `lib` across already-parsed importer ASTs.
 
     Returns ``(verdict, n_call_sites)``. Verdicts:
     ``easy(N)`` / ``many(N)`` (deferrable, N call sites), ``BLOCKED:baseclass``,
@@ -98,11 +103,7 @@ def deferability(lib: str, sources: Iterable[str], *, test_only: frozenset[str] 
         return "TEST-only", 0
     total = {"base": 0, "mod": 0, "ann": 0, "fns": 0}
     future = True
-    for source in sources:
-        try:
-            tree = ast.parse(source)
-        except SyntaxError:
-            continue
+    for tree in trees:
         names = bound_names(tree, lib)
         if not names:
             continue
@@ -122,3 +123,12 @@ def deferability(lib: str, sources: Iterable[str], *, test_only: frozenset[str] 
     if n == 0:
         return "?", 0
     return (f"easy({n})" if n <= 2 else f"many({n})"), n
+
+
+def deferability(lib: str, sources: Iterable[str], *, test_only: frozenset[str] = frozenset()) -> tuple[str, int]:
+    """Parse `sources` (importer source strings) and classify — convenience over the AST core."""
+    trees = []
+    for source in sources:
+        with contextlib.suppress(SyntaxError):
+            trees.append(ast.parse(source))
+    return deferability_for_trees(lib, trees, test_only=test_only)

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from ._util import top_level
+
 
 @dataclass
 class Config:
@@ -22,7 +24,6 @@ class Config:
 
     importtime_log: str
     entry: str = "django:setup"
-    django_settings: str | None = None
     import_extra: list[str] = field(default_factory=list)
     root_override: list[str] = field(default_factory=list)
     first_party: tuple[str, ...] = ()
@@ -39,4 +40,4 @@ class Config:
         return self.entry.split(":", 1)[0]
 
     def is_first_party(self, module: str) -> bool:
-        return module.split(".")[0] in self.first_party
+        return top_level(module) in self.first_party

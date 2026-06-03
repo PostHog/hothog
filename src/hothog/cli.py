@@ -97,15 +97,17 @@ def _env_dict(pairs: list[str]) -> dict[str, str]:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    env = _env_dict(args.env)
+    if args.django_settings:  # convenience alias for --env DJANGO_SETTINGS_MODULE=...
+        env["DJANGO_SETTINGS_MODULE"] = args.django_settings
     cfg = Config(
         importtime_log=args.importtime_log,
         entry=args.entry,
-        django_settings=args.django_settings,
         import_extra=args.import_extra,
         root_override=args.root_override,
         first_party=tuple(args.first_party),
         test_only=frozenset(args.test_only),
-        env=_env_dict(args.env),
+        env=env,
         top=args.top,
         min_removable=args.min_removable,
         use_grimp=not args.no_grimp,
