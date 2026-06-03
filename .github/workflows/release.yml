@@ -2,7 +2,7 @@
 # Publishing uses PyPI Trusted Publishing (OIDC) — no API token. Configure the trusted
 # publisher once at https://pypi.org/manage/project/hothog/settings/publishing/ pointing at
 # this repo + workflow + the `release` environment.
-name: Publish
+name: Release
 
 on:
   push:

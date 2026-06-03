@@ -17,7 +17,7 @@ uv build                                               # sdist + wheel
 ```
 
 CI (`.github/workflows/ci.yml`) runs ruff + mypy + a pytest matrix (3.10–3.13). Publishing is
-tag-driven via `publish.yml` (PyPI trusted publishing / OIDC, no tokens) — see `README.md` → reserve/publish steps.
+tag-driven via `release.yml` (PyPI trusted publishing / OIDC, no tokens) — see `README.md` → reserve/publish steps.
 
 ## Architecture
 
