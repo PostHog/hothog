@@ -97,6 +97,11 @@ def _env_dict(pairs: list[str]) -> dict[str, str]:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    # The entry we run imports the target project from the current directory, but a console script
+    # (unlike `python -c` / `python script.py`) doesn't put CWD on sys.path. Mirror `python -c` so the
+    # analysis run matches how the importtime log was captured, and `hothog` works from the repo root.
+    if "" not in sys.path:
+        sys.path.insert(0, "")
     env = _env_dict(args.env)
     if args.django_settings:  # convenience alias for --env DJANGO_SETTINGS_MODULE=...
         env["DJANGO_SETTINGS_MODULE"] = args.django_settings

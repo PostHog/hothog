@@ -39,6 +39,8 @@ python -X importtime -c "import django; django.setup()" 2> /tmp/hothog.log
 hothog /tmp/hothog.log --first-party myapp,myproject
 ```
 
+Run both commands from your project root — hothog puts the working directory on `sys.path` (like `python -c`) so the entry can import your first-party code.
+
 For a non-Django entry, pass `--entry "module:callable"`:
 
 ```bash
