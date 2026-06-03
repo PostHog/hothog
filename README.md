@@ -64,7 +64,7 @@ Given a process entry point (default: `django:setup`), it produces a ranked, **a
 Run against the bundled synthetic app (`tests/fixtures/sample_app`), where two views import a heavy SDK at module scope but only use it inside functions:
 
 ```
-hot-path self-cost: 59ms total   |   pickable (deferable) ~30ms; full addressable ~66ms
+hot-path self-cost: 59ms total   |   pickable (deferrable) ~30ms; full addressable ~66ms
 rank    ms    cum sites fanout defer?          module  →  defer at  /  upstream 1-cut
 ------------------------------------------------------------------------------------------------------------------------
    1    30     30     2      - easy(2)         heavy_sdk  →  sample_app.api.billing +1   ⤷ 1-cut@sample_app.api
@@ -75,7 +75,7 @@ excluded (not low-hanging):
   transit    4 items  ~    0ms  (no direct defer site — defer its parent)
 ```
 
-Read it: `heavy_sdk` costs 30ms, is imported in 2 places (`billing` + 1 more), is cleanly deferable (`easy(2)`), and instead of editing both sites you can make **one** cut at `sample_app.api`. `config_sdk` is used at module scope, so it's `⟂` (not cleanly deferable as-is). Columns: `*` on fanout means "imported beyond the shown sites"; `⟂` marks not-cleanly-deferable rows.
+Read it: `heavy_sdk` costs 30ms, is imported in 2 places (`billing` + 1 more), is cleanly deferrable (`easy(2)`), and instead of editing both sites you can make **one** cut at `sample_app.api`. `config_sdk` is used at module scope, so it's `⟂` (not cleanly deferrable as-is). Columns: `*` on fanout means "imported beyond the shown sites"; `⟂` marks not-cleanly-deferrable rows.
 
 ## For coding agents
 

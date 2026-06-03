@@ -52,7 +52,7 @@ def compare_logs(
     """Diff two importtime logs by aggregated self-cost.
 
     Returns ``(base_total, cur_total, deltas)`` where each delta is
-    ``(delta_ms, state, module)`` and ``state`` is ``REMOVED`` / ``reduced`` / ``GREW``.
+    ``(delta_ms, state, module)`` and ``state`` is ``REMOVED`` / ``reduced`` / ``GREW`` / ``same``.
     Positive delta = removed/cheaper on current. Per-module deltas for shared libraries are
     noisy (first-importer re-attribution); the net (``base_total - cur_total``) is the
     trustworthy number.
@@ -62,8 +62,14 @@ def compare_logs(
     deltas: list[tuple[float, str, str]] = []
     for key in set(base) | set(cur):
         d = base.get(key, 0.0) - cur.get(key, 0.0)
-        gone = key in base and key not in cur
-        state = "REMOVED" if gone else ("reduced" if d > 0 else "GREW")
+        if key in base and key not in cur:
+            state = "REMOVED"
+        elif d > 0:
+            state = "reduced"
+        elif d < 0:
+            state = "GREW"
+        else:
+            state = "same"
         deltas.append((d, state, key))
     deltas.sort(key=lambda x: -abs(x[0]))
     return sum(base.values()), sum(cur.values()), deltas

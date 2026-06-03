@@ -78,24 +78,42 @@ class Triage:
         self._tree_cache: dict[str, ast.Module | None] = {}  # module -> parsed source (read+parsed once)
 
     def run(self) -> Report:
-        self._apply_env()
-        edges = self._capture_entry()
-        loaded = set(sys.modules)
-        self.self_ms = parse_self_ms(self.cfg.importtime_log)
+        saved_env = self._apply_env()
+        try:
+            edges = self._capture_entry()
+            loaded = set(sys.modules)
+            self.self_ms = parse_self_ms(self.cfg.importtime_log)
 
-        self.graph, imp_graph, rev = self._build_graphs(edges, loaded)
-        self.roots = self._roots(edges, loaded)
-        self.base = self._reachable(frozenset())
-        self.dom = self._dominator_tree(imp_graph, loaded)
-        self.grimp = self._build_grimp()
+            self.graph, imp_graph, rev = self._build_graphs(edges, loaded)
+            self.roots = self._roots(edges, loaded)
+            self.base = self._reachable(frozenset())
+            self.dom = self._dominator_tree(imp_graph, loaded)
+            self.grimp = self._build_grimp()
 
-        scored = self._score(loaded, rev)
-        return self._assemble(scored)
+            scored = self._score(loaded, rev)
+            return self._assemble(scored)
+        finally:
+            self._restore_env(saved_env)
 
     # -- entry & hook ---------------------------------------------------------------------------
 
-    def _apply_env(self) -> None:
+    def _apply_env(self) -> dict[str, str | None]:
+        """Set the configured env vars, returning their prior values so run() can restore them.
+
+        Without the restore, the library API would leak DJANGO_SETTINGS_MODULE etc. into the
+        caller's process — surprising for repeated runs or unrelated code after a triage.
+        """
+        saved = {k: os.environ.get(k) for k in self.cfg.env}
         os.environ.update(self.cfg.env)
+        return saved
+
+    @staticmethod
+    def _restore_env(saved: dict[str, str | None]) -> None:
+        for key, value in saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
     def _capture_entry(self) -> dict[str, set[str]]:
         """Install the import hook, run the entry callable, restore. Returns importer->imported edges."""

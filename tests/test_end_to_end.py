@@ -9,6 +9,7 @@ package (`sample_app`) and two fake external SDKs reproduce the exact patterns h
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -89,3 +90,29 @@ def test_report_totals_are_populated(tmp_path):
 
     assert report.total_self_ms > 0  # importtime log parsed
     assert report.rows  # at least the two SDKs surfaced
+
+
+def test_run_restores_env(tmp_path):
+    from hothog import Config, Triage
+
+    log = tmp_path / "it.log"
+    _capture_importtime(log)
+
+    marker = "HOTHOG_ENV_RESTORE_CHECK"
+    assert marker not in os.environ
+    sys.path.insert(0, str(FIXTURES))
+    _fresh_import_state()
+    try:
+        cfg = Config(
+            importtime_log=str(log),
+            entry="sample_app.boot:run",
+            first_party=("sample_app",),
+            env={marker: "set-during-run"},
+            use_grimp=False,
+        )
+        Triage(cfg).run()
+    finally:
+        sys.path.remove(str(FIXTURES))
+        _fresh_import_state()
+
+    assert marker not in os.environ  # restored, not leaked into the calling process

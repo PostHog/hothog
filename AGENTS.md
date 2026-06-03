@@ -1,6 +1,7 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for coding agents (Claude Code, Copilot, and friends) working in this repository.
+`CLAUDE.md` is a symlink to this file.
 
 `hothog` ranks which imports to defer off a Python process's hot path. See `README.md` for the
 full "why" and the four-signal science — this file is the operational shortcut.

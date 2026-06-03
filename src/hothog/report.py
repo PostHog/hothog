@@ -9,7 +9,7 @@ def format_report(report: Report) -> str:
     lines: list[str] = []
     lines.append(
         f"\nhot-path self-cost: {report.total_self_ms:.0f}ms total   |   "
-        f"pickable (deferable) ~{report.pickable_ms:.0f}ms; full addressable ~{report.addressable_ms:.0f}ms"
+        f"pickable (deferrable) ~{report.pickable_ms:.0f}ms; full addressable ~{report.addressable_ms:.0f}ms"
     )
     header = f"{'rank':>4} {'ms':>5} {'cum':>6} {'sites':>5} {'fanout':>6} {'defer?':<14}  module  →  defer at  /  upstream 1-cut"  # noqa: E501
     lines.append(header)
@@ -28,7 +28,7 @@ def format_report(report: Report) -> str:
             f"{i:>4} {r.removable:5.0f} {cumtxt} {len(r.importers):>5} {fo:>6} {r.defer:<14}  {r.label}  →  {where}{more}{cuttxt}{mark}"  # noqa: E501
         )
     lines.append(
-        "⟂ = not cleanly deferable (baseclass/modscope = used at class/module scope; TEST-only = test artifact)"
+        "⟂ = not cleanly deferrable (baseclass/modscope = used at class/module scope; TEST-only = test artifact)"
     )
     lines.append("⤷ 1-cut@X = dominator: deferring the lib at module X removes the whole subtree in one place")
 
