@@ -4,13 +4,11 @@
 
 `import` is not free. A single module-level `import` can transitively pull hundreds of modules and seconds of wall-clock, and that cost is paid by **every process that loads the importing module**, whether or not it ever uses the dependency. hothog ranks what to make lazy by the cost that would *actually* come off the path if you deferred it — not the misleading cumulative number — and tells you, per library, whether the cut is even feasible and the one upstream place to make it.
 
-It was extracted and generalized from a real `django.setup()` optimization effort against a large Django monolith, but the entry point is configurable: point it at any `"module:callable"`.
+**Built for coding agents.** Cleaning up imports is mechanical, high-volume work — a perfect job for an agent — but only if something else makes the hard calls first: what's worth deferring, what *can* be deferred, and the single place to cut. hothog is that something. It emits a ranked, verdict-annotated backlog (and a structured `Report` API) an agent can execute row by row — see [For coding agents](#for-coding-agents). It was itself built with agentic coding, and generalized from a real `django.setup()` optimization effort; the entry point is configurable, so you can point it at any `"module:callable"`.
 
 ```
 pip install hothog
 ```
-
----
 
 ## Why this exists (the "import tax")
 
@@ -24,8 +22,6 @@ The hard part is not *fixing* a deferral. It is **deciding which imports are wor
 - And sometimes a library used in N leaf places funnels through a **single upstream chokepoint** — one cut removes the whole subtree.
 
 hothog answers those quantitatively instead of by hand. The visualizers (`tuna`, `importtime-waterfall`, treemaps) show you cost; none of them tell you *what to defer, whether you can, or where*.
-
----
 
 ## Quickstart
 
@@ -47,8 +43,6 @@ For a non-Django entry, pass `--entry "module:callable"`:
 python -X importtime -c "import myapp.boot; myapp.boot.main()" 2> /tmp/hothog.log
 hothog /tmp/hothog.log --entry myapp.boot:main --first-party myapp
 ```
-
----
 
 ## What it does
 
@@ -79,7 +73,43 @@ excluded (not low-hanging):
 
 Read it: `heavy_sdk` costs 30ms, is imported in 2 places (`billing` + 1 more), is cleanly deferable (`easy(2)`), and instead of editing both sites you can make **one** cut at `sample_app.api`. `config_sdk` is used at module scope, so it's `⟂` (not cleanly deferable as-is). Columns: `*` on fanout means "imported beyond the shown sites"; `⟂` marks not-cleanly-deferable rows.
 
----
+## For coding agents
+
+Told only "make the heavy imports lazy," an agent flails: it plays whack-a-mole across dozens of call sites, tries to defer things that can't move (base classes, module-scope use), and misses the one upstream chokepoint that would cut a whole subtree in a single edit. hothog removes the judgment from the loop — it makes those decisions and hands back a deterministic worklist where every row maps to a concrete action.
+
+| `defer?` verdict | what the agent should do |
+| --- | --- |
+| `easy(N)` / `many(N)` | move the import into the N function bodies that use it — or, if a `1-cut@X` is shown, into that one module instead |
+| `1-cut@X` | edit **only** module `X`; deferring there disconnects the whole subtree, so leave the leaf sites alone |
+| `annot:lazy` | add `from __future__ import annotations` — the uses are type-only |
+| `annot:needs-str` | stringize the annotations (or add the `__future__` import) |
+| `BLOCKED:baseclass` / `BLOCKED:modscope` / `⟂` | **skip** — used at class/module scope, can't be deferred as-is |
+
+A reliable agent loop:
+
+1. Run hothog and take the top pickable rows (`⟂` rows excluded).
+2. For each, apply the deferral at `defer at` / `1-cut@X` per the verdict above.
+3. Re-capture importtime and run `--compare` against the old log — the **net** drop confirms the change actually paid off (per-library deltas are noisy; the net is trustworthy).
+
+Consume the backlog as structured data instead of scraping the table:
+
+```python
+from hothog import Config, Triage
+
+report = Triage(Config(
+    importtime_log="/tmp/hothog.log",
+    entry="django:setup",
+    first_party=("myapp", "myproject"),
+)).run()
+
+for row in report.rows:
+    if row.blocked:
+        continue  # don't touch ⟂ rows
+    # row.label, row.removable (ms), row.defer, row.cut, row.importers
+    ...
+```
+
+One call the agent should *not* make blindly: on a long-lived web server, don't let a deferral land on a user's request path — see [Applications](#applications) for defer-vs-warmup. hothog finds *where* a cut is possible; whether to take it is policy.
 
 ## How it works (the science)
 
@@ -164,8 +194,6 @@ This is the part neither a type-checker LSP nor an import-grapher gives directly
 
 Given two `importtime` logs (e.g. before/after a change, or two different entry points), `--compare` reports the per-module self-cost delta — what a change removed, and what re-attributed. The **net** is the trustworthy number; per-module deltas for shared libraries are noisy by the same first-importer mechanism as #1.
 
----
-
 ## Applications
 
 - **Speed up process startup** — the original use case. Rank what to defer off `django.setup()` (or any framework boot) so short-lived and frequent processes stop paying for code they never run.
@@ -174,9 +202,7 @@ Given two `importtime` logs (e.g. before/after a change, or two different entry 
   - short-lived / frequent / cold-start-sensitive (CLI, `migrate`, shell, workers, serverless): **deferral is a pure win**.
   - long-lived web server: you often *don't* want a deferral to land on the first request to an endpoint (a user pays the latency). Prefer to keep the import eager **or** pre-import it in an explicit startup **warmup** before the server accepts traffic, so the cost is paid once, off the request path.
 
-  The tool gives you the cut list and the leverage; the eager-vs-defer-vs-warmup decision is yours.
-
----
+  The tool gives you the cut list and the leverage; the eager-vs-defer-vs-warmup decision is yours (or your agent's, with this caveat in its prompt).
 
 ## Usage
 
@@ -198,19 +224,7 @@ hothog [IMPORTTIME_LOG] [options]
 | `--no-grimp` | skip the static cross-check (faster; loses fan-out + cycle columns) |
 | `--compare OTHER.log` | diff two importtime logs and exit |
 
-You can also use it as a library:
-
-```python
-from hothog import Config, Triage
-
-report = Triage(Config(
-    importtime_log="/tmp/hothog.log",
-    entry="django:setup",
-    first_party=("myapp", "myproject"),
-)).run()
-for row in report.rows:
-    print(row.label, row.removable, row.defer, row.cut)
-```
+The library API (`Config` / `Triage` / `Report`) is shown under [For coding agents](#for-coding-agents).
 
 ### The original PostHog invocation
 
@@ -224,8 +238,6 @@ hothog /tmp/hothog.log \
   --first-party posthog,products,ee,common --test-only fakeredis
 ```
 
----
-
 ## Caveats & limitations
 
 - **`importlib.import_module` is invisible to the hook.** Dynamically loaded modules (e.g. Django app loading) have no captured importer; the tool compensates by treating them as effective entry points for dominator analysis, but the dominator chain *above* such a module cannot be reconstructed. Capturing these (wrapping `importlib.import_module` / `_bootstrap._gcd_import`) is future work — and even then the "logical" importer of a dynamic load is ambiguous.
@@ -233,8 +245,6 @@ hothog /tmp/hothog.log \
 - **Test-mode artifacts.** If the entry runs under test settings, some libraries load that wouldn't in production (e.g. an in-memory fake for a datastore). `--test-only` suppresses the obvious ones; the general case is unsolved.
 - **Function-level imports in the static graph.** `grimp` records imports wherever they appear, so an already-deferred import still shows as a static edge — relevant only to the `fanout` interpretation, not to `removable`.
 - **Single language / single process.** This measures one Python process's import graph. No threads, no subprocesses, no native-extension internals.
-
----
 
 ## Algorithms & references
 
@@ -244,8 +254,6 @@ hothog /tmp/hothog.log \
 - Graph reachability under vertex deletion — the `removable` cost.
 - CPython `-X importtime` — import cost measurement.
 - [`grimp`](https://github.com/seddonym/grimp) — static import graph, fan-out, cycle detection.
-
----
 
 ## Development
 
@@ -257,13 +265,11 @@ uv run --extra dev mypy
 
 The pure cores (`importtime`, `dominators`, `deferability`) are unit-tested without Django or grimp; `tests/test_end_to_end.py` drives the live import hook, entry resolution, and the full join against a synthetic app under `tests/fixtures/`.
 
----
-
 ## Roadmap
 
 - Capture `importlib.import_module` edges to close the dynamic-import blind spot.
 - Multi-run averaging to denoise first-importer re-attribution.
-- JSON output mode.
+- JSON output mode (a second machine-readable surface alongside the `Report` API).
 - A realistic Django + DRF + heavy-SDK example app for the docs.
 
 ## License
