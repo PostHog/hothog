@@ -100,11 +100,13 @@ Consume the backlog as structured data instead of scraping the table:
 ```python
 from hothog import Config, Triage
 
-report = Triage(Config(
-    importtime_log="/tmp/hothog.log",
-    entry="django:setup",
-    first_party=("myapp", "myproject"),
-)).run()
+report = Triage(
+    Config(
+        importtime_log="/tmp/hothog.log",
+        entry="django:setup",
+        first_party=("myapp", "myproject"),
+    )
+).run()
 
 for row in report.rows:
     if row.blocked:
